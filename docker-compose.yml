@@ -1,0 +1,7 @@
+services:
+  redis-stack:
+    image: "redis:latest"
+    container_name: redis-container
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
