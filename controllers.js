@@ -64,7 +64,8 @@ export const deleteDoctor = async (req, res) => {
   try {
     const id = req.params.id;
     const doctorKey = `doctor:${id}`;
-    const workingHoursKey = `WorkingHours:${id}`;
+    const workingHoursKey = `workingHours:${id}`;
+    const reservationsKey = `reservations:${id}`;
 
     const exists = await client.exists(doctorKey);
     if (!exists) {
@@ -73,6 +74,7 @@ export const deleteDoctor = async (req, res) => {
 
     await client.del(doctorKey);
     await client.del(workingHoursKey);
+    await client.del(reservationsKey);
 
     res
       .status(200)
