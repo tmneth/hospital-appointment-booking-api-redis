@@ -41,6 +41,8 @@ export const addDoctor = async (req, res) => {
 };
 
 export const getDoctor = async (req, res) => {
+  const id = req.params.id;
+
   try {
     const doctorKey = `doctor:${id}`;
     const workingHoursKey = `workingHours:${id}`;
