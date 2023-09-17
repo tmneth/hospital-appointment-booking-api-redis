@@ -87,21 +87,51 @@ export const deleteDoctor = async (req, res) => {
   }
 };
 
-export const getDoctors = async (req, res) => {
+export const reserveAppointment = async (req, res) => {
+  const { doctorId, dateTime } = req.body;
+  const time = dateTime.split(" ")[1];
+
   try {
-    const doctorKeys = await client.keys("doctor:*");
-    const doctors = [];
-
-    for (const key of doctorKeys) {
-      const doctorDetails = await client.hGetAll(key);
-      const id = key.split(":")[1];
-      const workingHours = await client.sMembers(`WorkingHours:${id}`);
-
-      doctors.push({ ...doctorDetails, workingHours });
+    const doctorExists = await client.exists(`doctor:${doctorId}`);
+    if (!doctorExists) {
+      return res.status(404).json({ message: "Doctor not found." });
     }
 
-    res.status(200).json(doctors);
+    const reservationKey = `reservations:${doctorId}`;
+    const workingHoursKey = `workingHours:${doctorId}`;
+
+    client.watch(reservationKey);
+
+    const isSlotReserved = await client.sIsMember(reservationKey, dateTime);
+    if (isSlotReserved) {
+      client.unwatch();
+      return res.status(409).json({ message: "Slot already reserved." });
+    }
+
+    const isTimeAvailable = await client.sIsMember(workingHoursKey, time);
+    if (!isTimeAvailable) {
+      client.unwatch();
+      return res
+        .status(409)
+        .json({ message: "Selected time is not available for the doctor." });
+    }
+
+    const multi = client.multi();
+
+    multi.sAdd(reservationKey, dateTime);
+
+    const results = await multi.exec();
+
+    console.log(results);
+    if (!results[0]) {
+      return res
+        .status(409)
+        .json({ message: "Slot was reserved by another user." });
+    }
+    console.log("reserved");
+    res.status(200).json({ message: `Appointment reserved for ${dateTime}` });
   } catch (error) {
-    res.status(500).json({ message: "Error retrieving doctors." });
+    console.error(error);
+    res.status(500).json({ message: "Error reserving appointment." });
   }
 };
