@@ -42,7 +42,7 @@ export const reserveAppointment = async (req, res) => {
 
     client.unwatch();
 
-    if (!results || results.includes(null)) {
+    if (!results || results.includes(0)) {
       return res
         .status(409)
         .json({ message: "Time slot has been reserved by another user." });

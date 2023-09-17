@@ -33,7 +33,7 @@ export const addDoctor = async (req, res) => {
 
     client.unwatch();
 
-    if (!results || results.includes(null)) {
+    if (!results || results.includes(0)) {
       return res
         .status(500)
         .json({ message: "Error during creation. Please try again." });
@@ -59,7 +59,7 @@ export const getDoctors = async (req, res) => {
 
       const workingHours = await client.sMembers(`workingHours:${doctorId}`);
       const reservations = await client.sMembers(`reservations:${doctorId}`);
-      console.log(doctors);
+
       doctors.push({ ...doctorDetails, workingHours, reservations });
     }
 
@@ -124,7 +124,7 @@ export const deleteDoctor = async (req, res) => {
 
     client.unwatch();
 
-    if (!results || results.includes(null)) {
+    if (!results || results.includes(0)) {
       return res
         .status(500)
         .json({ message: "Error during deletion. Please try again." });
