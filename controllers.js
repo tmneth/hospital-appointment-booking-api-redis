@@ -9,15 +9,20 @@ client.on("error", function (error) {
 await client.connect();
 
 export const addDoctor = async (req, res) => {
-  const { id, name, specialization } = req.body;
+  const { id, name, specialization, workingHours } = req.body;
 
   try {
-    await client.hSet(`doctor:${id}`, [
+    const doctorKey = `doctor:${id}`;
+
+    await client.hSet(doctorKey, [
       "name",
       name,
       "specialization",
       specialization,
     ]);
+
+    await client.sAdd(`WorkingHours:${id}`, workingHours);
+
     res
       .status(200)
       .json({ message: `Doctor with id: ${id} added successfully` });
@@ -29,15 +34,18 @@ export const addDoctor = async (req, res) => {
 export const getDoctor = async (req, res) => {
   try {
     const id = req.params.id;
+    const doctorKey = `doctor:${id}`;
+    const workingHoursKey = `WorkingHours:${id}`;
 
-    const exists = await client.exists(`doctor:${id}`);
+    const exists = await client.exists(doctorKey);
     if (!exists) {
       return res.status(404).json({ message: "Doctor not found." });
     }
 
-    const doctor = await client.hGetAll(`doctor:${id}`);
+    const doctorDetails = await client.hGetAll(doctorKey);
+    const workingHours = await client.sMembers(workingHoursKey);
 
-    res.status(200).json(doctor);
+    res.status(200).json({ doctorDetails, workingHours });
   } catch (error) {
     res.status(500).json({ message: "Error getting doctor." });
   }
@@ -46,13 +54,16 @@ export const getDoctor = async (req, res) => {
 export const deleteDoctor = async (req, res) => {
   try {
     const id = req.params.id;
+    const doctorKey = `doctor:${id}`;
+    const workingHoursKey = `WorkingHours:${id}`;
 
-    const exists = await client.exists(`doctor:${id}`);
+    const exists = await client.exists(doctorKey);
     if (!exists) {
       return res.status(404).json({ message: "Doctor not found." });
     }
 
-    await client.del(`doctor:${id}`);
+    await client.del(doctorKey);
+    await client.del(workingHoursKey);
 
     res
       .status(200)
@@ -65,11 +76,14 @@ export const deleteDoctor = async (req, res) => {
 export const getDoctors = async (req, res) => {
   try {
     const doctorKeys = await client.keys("doctor:*");
-
     const doctors = [];
+
     for (const key of doctorKeys) {
       const doctorDetails = await client.hGetAll(key);
-      doctors.push(doctorDetails);
+      const id = key.split(":")[1];
+      const workingHours = await client.sMembers(`WorkingHours:${id}`);
+
+      doctors.push({ ...doctorDetails, workingHours });
     }
 
     res.status(200).json(doctors);
