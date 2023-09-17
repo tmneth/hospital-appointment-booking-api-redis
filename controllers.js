@@ -40,6 +40,29 @@ export const addDoctor = async (req, res) => {
   }
 };
 
+export const getDoctors = async (req, res) => {
+  try {
+    const doctorKeys = await client.keys("doctor:*");
+    const doctors = [];
+
+    for (const key of doctorKeys) {
+      const doctorDetails = await client.hGetAll(key);
+
+      const id = key.split(":")[1];
+      const workingHours = await client.sMembers(`workingHours:${id}`);
+
+      const reservations = await client.sMembers(`reservations:${id}`);
+
+      doctors.push({ ...doctorDetails, workingHours, reservations });
+    }
+
+    res.status(200).json(doctors);
+  } catch (error) {
+    console.error("Error retrieving doctors:", error);
+    res.status(500).json({ message: "Error retrieving doctors." });
+  }
+};
+
 export const getDoctor = async (req, res) => {
   const id = req.params.id;
 
