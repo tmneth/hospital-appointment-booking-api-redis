@@ -20,8 +20,13 @@ export const addDoctor = async (req, res) => {
     const doctorId = uuidv4();
 
     const doctorKey = `doctor:${doctorId}`;
+    const workingHoursKey = `workingHours:${doctorId}`;
 
-    await client.hSet(doctorKey, [
+    client.watch(doctorKey, workingHoursKey);
+
+    const multi = client.multi();
+
+    multi.hSet(doctorKey, [
       "id",
       doctorId,
       "name",
@@ -30,7 +35,15 @@ export const addDoctor = async (req, res) => {
       specialization,
     ]);
 
-    await client.sAdd(`workingHours:${doctorId}`, workingHours);
+    multi.sAdd(workingHoursKey, workingHours);
+
+    const results = await multi.exec();
+
+    if (results.includes(0)) {
+      return res
+        .status(500)
+        .json({ message: "Error during creation. Please try again." });
+    }
 
     res
       .status(200)
@@ -101,13 +114,29 @@ export const deleteDoctor = async (req, res) => {
         .json({ message: `Doctor with id ${doctorId} not found.` });
     }
 
-    await client.del(doctorKey);
-    await client.del(workingHoursKey);
-    await client.del(reservationsKey);
+    client.watch(doctorKey, workingHoursKey, reservationsKey);
+
+    const multi = client.multi();
+
+    multi.del(doctorKey);
+    multi.del(workingHoursKey);
+
+    const reservationExists = await client.exists(reservationsKey);
+    if (reservationExists) {
+      multi.del(reservationsKey);
+    }
+
+    const results = await multi.exec();
+
+    if (results.includes(0)) {
+      return res
+        .status(500)
+        .json({ message: "Error during deletion. Please try again." });
+    }
 
     res
       .status(200)
-      .json({ message: `Doctor with id: ${id} deleted successfully!` });
+      .json({ message: `Doctor with id: ${doctorId} deleted successfully!` });
   } catch (error) {
     res.status(500).json({ message: "Error deleting doctor." });
   }
