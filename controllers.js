@@ -1,4 +1,5 @@
 import redis from "redis";
+import { v4 as uuidv4 } from "uuid";
 
 const client = redis.createClient("rediss://127.0.0.1:6379");
 
@@ -9,23 +10,25 @@ client.on("error", function (error) {
 await client.connect();
 
 export const addDoctor = async (req, res) => {
-  const { id, name, specialization, workingHours } = req.body;
-
   try {
-    const doctorKey = `doctor:${id}`;
+    const doctorId = uuidv4();
+
+    const doctorKey = `doctor:${doctorId}`;
 
     await client.hSet(doctorKey, [
+      "id",
+      doctorId,
       "name",
       name,
       "specialization",
       specialization,
     ]);
 
-    await client.sAdd(`WorkingHours:${id}`, workingHours);
+    await client.sAdd(`workingHours:${doctorId}`, workingHours);
 
     res
       .status(200)
-      .json({ message: `Doctor with id: ${id} added successfully` });
+      .json({ message: `Doctor with id: ${doctorId} added successfully` });
   } catch (error) {
     res.status(500).json({ message: "Error adding doctor." });
   }
