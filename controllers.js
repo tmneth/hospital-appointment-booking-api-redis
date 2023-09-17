@@ -10,6 +10,12 @@ client.on("error", function (error) {
 await client.connect();
 
 export const addDoctor = async (req, res) => {
+  const { name, specialization, workingHours } = req.body;
+
+  if (!name || !specialization || !workingHours.length) {
+    return res.status(400).json({ message: "All fields are required." });
+  }
+
   try {
     const doctorId = uuidv4();
 
