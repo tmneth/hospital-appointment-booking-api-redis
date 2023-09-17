@@ -42,9 +42,9 @@ export const addDoctor = async (req, res) => {
 
 export const getDoctor = async (req, res) => {
   try {
-    const id = req.params.id;
     const doctorKey = `doctor:${id}`;
-    const workingHoursKey = `WorkingHours:${id}`;
+    const workingHoursKey = `workingHours:${id}`;
+    const reservationsKey = `reservations:${id}`;
 
     const exists = await client.exists(doctorKey);
     if (!exists) {
@@ -53,8 +53,9 @@ export const getDoctor = async (req, res) => {
 
     const doctorDetails = await client.hGetAll(doctorKey);
     const workingHours = await client.sMembers(workingHoursKey);
+    const reservations = await client.sMembers(reservationsKey);
 
-    res.status(200).json({ doctorDetails, workingHours });
+    res.status(200).json({ ...doctorDetails, workingHours, reservations });
   } catch (error) {
     res.status(500).json({ message: "Error getting doctor." });
   }
