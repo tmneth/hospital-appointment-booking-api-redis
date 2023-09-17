@@ -124,7 +124,7 @@ export const deleteDoctor = async (req, res) => {
 
     client.unwatch();
 
-    if (results.includes(0)) {
+    if (!results || results.includes(null)) {
       return res
         .status(500)
         .json({ message: "Error during deletion. Please try again." });
