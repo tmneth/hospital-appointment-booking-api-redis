@@ -152,7 +152,6 @@ export const reserveAppointment = async (req, res) => {
 
     const results = await multi.exec();
 
-    console.log(results);
     if (!results[0]) {
       return res
         .status(409)
@@ -163,7 +162,6 @@ export const reserveAppointment = async (req, res) => {
       .status(200)
       .json({ message: `Appointment successfully reserved for ${dateTime}!` });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Error reserving appointment." });
   }
 };
