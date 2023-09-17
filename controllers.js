@@ -13,7 +13,7 @@ export const addDoctor = async (req, res) => {
   const { name, specialization, workingHours } = req.body;
 
   if (!name || !specialization || !workingHours.length) {
-    return res.status(400).json({ message: "All fields are required." });
+    return res.status(400).json({ message: "Some details are missing." });
   }
 
   try {
@@ -34,7 +34,7 @@ export const addDoctor = async (req, res) => {
 
     res
       .status(200)
-      .json({ message: `Doctor with id: ${doctorId} added successfully` });
+      .json({ message: `Doctor with id: ${doctorId} added successfully!` });
   } catch (error) {
     res.status(500).json({ message: "Error adding doctor." });
   }
@@ -58,8 +58,7 @@ export const getDoctors = async (req, res) => {
 
     res.status(200).json(doctors);
   } catch (error) {
-    console.error("Error retrieving doctors:", error);
-    res.status(500).json({ message: "Error retrieving doctors." });
+    res.status(500).json({ message: "Error getting doctors." });
   }
 };
 
@@ -71,9 +70,11 @@ export const getDoctor = async (req, res) => {
     const workingHoursKey = `workingHours:${doctorId}`;
     const reservationsKey = `reservations:${doctorId}`;
 
-    const exists = await client.exists(doctorKey);
-    if (!exists) {
-      return res.status(404).json({ message: "Doctor not found." });
+    const doctorExists = await client.exists(doctorKey);
+    if (!doctorExists) {
+      return res
+        .status(404)
+        .json({ message: `Doctor with id ${doctorId} not found.` });
     }
 
     const doctorDetails = await client.hGetAll(doctorKey);
@@ -93,9 +94,11 @@ export const deleteDoctor = async (req, res) => {
     const workingHoursKey = `workingHours:${doctorId}`;
     const reservationsKey = `reservations:${doctorId}`;
 
-    const exists = await client.exists(doctorKey);
-    if (!exists) {
-      return res.status(404).json({ message: "Doctor not found." });
+    const doctorExists = await client.exists(doctorKey);
+    if (!doctorExists) {
+      return res
+        .status(404)
+        .json({ message: `Doctor with id ${doctorId} not found.` });
     }
 
     await client.del(doctorKey);
@@ -104,7 +107,7 @@ export const deleteDoctor = async (req, res) => {
 
     res
       .status(200)
-      .json({ message: `Doctor with id: ${id} deleted successfully` });
+      .json({ message: `Doctor with id: ${id} deleted successfully!` });
   } catch (error) {
     res.status(500).json({ message: "Error deleting doctor." });
   }
@@ -115,9 +118,11 @@ export const reserveAppointment = async (req, res) => {
   const time = dateTime.split(" ")[1];
 
   try {
-    const doctorExists = await client.exists(`doctor:${doctorId}`);
+    const doctorExists = await client.exists(doctorKey);
     if (!doctorExists) {
-      return res.status(404).json({ message: "Doctor not found." });
+      return res
+        .status(404)
+        .json({ message: `Doctor with id ${doctorId} not found.` });
     }
 
     const reservationKey = `reservations:${doctorId}`;
@@ -125,18 +130,20 @@ export const reserveAppointment = async (req, res) => {
 
     client.watch(reservationKey);
 
-    const isSlotReserved = await client.sIsMember(reservationKey, dateTime);
-    if (isSlotReserved) {
-      client.unwatch();
-      return res.status(409).json({ message: "Slot already reserved." });
-    }
-
-    const isTimeAvailable = await client.sIsMember(workingHoursKey, time);
-    if (!isTimeAvailable) {
+    const slotReserved = await client.sIsMember(reservationKey, dateTime);
+    if (slotReserved) {
       client.unwatch();
       return res
         .status(409)
-        .json({ message: "Selected time is not available for the doctor." });
+        .json({ message: "Selected time slot already reserved." });
+    }
+
+    const slotAvailable = await client.sIsMember(workingHoursKey, time);
+    if (!slotAvailable) {
+      client.unwatch();
+      return res
+        .status(409)
+        .json({ message: "Selected time slot is not available." });
     }
 
     const multi = client.multi();
@@ -149,10 +156,12 @@ export const reserveAppointment = async (req, res) => {
     if (!results[0]) {
       return res
         .status(409)
-        .json({ message: "Slot was reserved by another user." });
+        .json({ message: "Time slot has been reserved by another user." });
     }
-    console.log("reserved");
-    res.status(200).json({ message: `Appointment reserved for ${dateTime}` });
+
+    res
+      .status(200)
+      .json({ message: `Appointment successfully reserved for ${dateTime}!` });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error reserving appointment." });
