@@ -48,10 +48,10 @@ export const getDoctors = async (req, res) => {
     for (const key of doctorKeys) {
       const doctorDetails = await client.hGetAll(key);
 
-      const id = key.split(":")[1];
-      const workingHours = await client.sMembers(`workingHours:${id}`);
+      const doctorId = key.split(":")[1];
 
-      const reservations = await client.sMembers(`reservations:${id}`);
+      const workingHours = await client.sMembers(`workingHours:${doctorId}`);
+      const reservations = await client.sMembers(`reservations:${doctorId}`);
 
       doctors.push({ ...doctorDetails, workingHours, reservations });
     }
@@ -64,12 +64,12 @@ export const getDoctors = async (req, res) => {
 };
 
 export const getDoctor = async (req, res) => {
-  const id = req.params.id;
+  const doctorId = req.params.id;
 
   try {
-    const doctorKey = `doctor:${id}`;
-    const workingHoursKey = `workingHours:${id}`;
-    const reservationsKey = `reservations:${id}`;
+    const doctorKey = `doctor:${doctorId}`;
+    const workingHoursKey = `workingHours:${doctorId}`;
+    const reservationsKey = `reservations:${doctorId}`;
 
     const exists = await client.exists(doctorKey);
     if (!exists) {
@@ -88,10 +88,10 @@ export const getDoctor = async (req, res) => {
 
 export const deleteDoctor = async (req, res) => {
   try {
-    const id = req.params.id;
-    const doctorKey = `doctor:${id}`;
-    const workingHoursKey = `workingHours:${id}`;
-    const reservationsKey = `reservations:${id}`;
+    const doctorId = req.params.id;
+    const doctorKey = `doctor:${doctorId}`;
+    const workingHoursKey = `workingHours:${doctorId}`;
+    const reservationsKey = `reservations:${doctorId}`;
 
     const exists = await client.exists(doctorKey);
     if (!exists) {
