@@ -1,13 +1,5 @@
-import redis from "redis";
 import { v4 as uuidv4 } from "uuid";
-
-const client = redis.createClient("rediss://127.0.0.1:6379");
-
-client.on("error", function (error) {
-  console.error("Error connecting to Redis:", error);
-});
-
-await client.connect();
+import client from "../redisClient.js";
 
 export const addDoctor = async (req, res) => {
   const { name, specialization, workingHours } = req.body;
@@ -39,7 +31,9 @@ export const addDoctor = async (req, res) => {
 
     const results = await multi.exec();
 
-    if (results.includes(0)) {
+    client.unwatch();
+
+    if (!results || results.includes(null)) {
       return res
         .status(500)
         .json({ message: "Error during creation. Please try again." });
@@ -65,7 +59,7 @@ export const getDoctors = async (req, res) => {
 
       const workingHours = await client.sMembers(`workingHours:${doctorId}`);
       const reservations = await client.sMembers(`reservations:${doctorId}`);
-
+      console.log(doctors);
       doctors.push({ ...doctorDetails, workingHours, reservations });
     }
 
@@ -101,8 +95,8 @@ export const getDoctor = async (req, res) => {
 };
 
 export const deleteDoctor = async (req, res) => {
+  const doctorId = req.params.id;
   try {
-    const doctorId = req.params.id;
     const doctorKey = `doctor:${doctorId}`;
     const workingHoursKey = `workingHours:${doctorId}`;
     const reservationsKey = `reservations:${doctorId}`;
@@ -128,6 +122,8 @@ export const deleteDoctor = async (req, res) => {
 
     const results = await multi.exec();
 
+    client.unwatch();
+
     if (results.includes(0)) {
       return res
         .status(500)
@@ -139,90 +135,5 @@ export const deleteDoctor = async (req, res) => {
       .json({ message: `Doctor with id: ${doctorId} deleted successfully!` });
   } catch (error) {
     res.status(500).json({ message: "Error deleting doctor." });
-  }
-};
-
-export const reserveAppointment = async (req, res) => {
-  const { doctorId, dateTime } = req.body;
-  const time = dateTime.split(" ")[1];
-
-  try {
-    const doctorKey = `doctor:${doctorId}`;
-    const reservationKey = `reservations:${doctorId}`;
-    const workingHoursKey = `workingHours:${doctorId}`;
-
-    const doctorExists = await client.exists(doctorKey);
-    if (!doctorExists) {
-      return res
-        .status(404)
-        .json({ message: `Doctor with id ${doctorId} not found.` });
-    }
-
-    client.watch(reservationKey);
-
-    const slotReserved = await client.sIsMember(reservationKey, dateTime);
-    if (slotReserved) {
-      client.unwatch();
-      return res
-        .status(409)
-        .json({ message: "Selected time slot already reserved." });
-    }
-
-    const slotAvailable = await client.sIsMember(workingHoursKey, time);
-    if (!slotAvailable) {
-      client.unwatch();
-      return res
-        .status(409)
-        .json({ message: "Selected time slot is not available." });
-    }
-
-    const multi = client.multi();
-
-    multi.sAdd(reservationKey, dateTime);
-
-    const results = await multi.exec();
-
-    if (!results[0]) {
-      return res
-        .status(409)
-        .json({ message: "Time slot has been reserved by another user." });
-    }
-
-    res
-      .status(200)
-      .json({ message: `Appointment successfully reserved for ${dateTime}!` });
-  } catch (error) {
-    res.status(500).json({ message: "Error reserving appointment." });
-  }
-};
-
-export const removeReservation = async (req, res) => {
-  const { doctorId, dateTime } = req.body;
-
-  try {
-    const doctorKey = `doctor:${doctorId}`;
-    const reservationKey = `reservations:${doctorId}`;
-
-    const doctorExists = await client.exists(doctorKey);
-    if (!doctorExists) {
-      return res
-        .status(404)
-        .json({ message: `Doctor with id ${doctorId} not found.` });
-    }
-
-    const slotReserved = await client.sIsMember(reservationKey, dateTime);
-    if (!slotReserved) {
-      return res
-        .status(409)
-        .json({ message: "Selected time slot is not reserved." });
-    }
-
-    await client.sRem(reservationKey, dateTime);
-
-    res
-      .status(200)
-      .json({ message: `Reservation for ${dateTime} removed successfully!` });
-  } catch (error) {
-    res.status(500).json({ message: "Error removing reservation." });
   }
 };
