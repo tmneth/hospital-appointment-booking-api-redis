@@ -118,15 +118,16 @@ export const reserveAppointment = async (req, res) => {
   const time = dateTime.split(" ")[1];
 
   try {
+    const doctorKey = `doctor:${doctorId}`;
+    const reservationKey = `reservations:${doctorId}`;
+    const workingHoursKey = `workingHours:${doctorId}`;
+
     const doctorExists = await client.exists(doctorKey);
     if (!doctorExists) {
       return res
         .status(404)
         .json({ message: `Doctor with id ${doctorId} not found.` });
     }
-
-    const reservationKey = `reservations:${doctorId}`;
-    const workingHoursKey = `workingHours:${doctorId}`;
 
     client.watch(reservationKey);
 
