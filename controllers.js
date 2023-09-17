@@ -166,3 +166,34 @@ export const reserveAppointment = async (req, res) => {
     res.status(500).json({ message: "Error reserving appointment." });
   }
 };
+
+export const removeReservation = async (req, res) => {
+  const { doctorId, dateTime } = req.body;
+
+  try {
+    const doctorKey = `doctor:${doctorId}`;
+    const reservationKey = `reservations:${doctorId}`;
+
+    const doctorExists = await client.exists(doctorKey);
+    if (!doctorExists) {
+      return res
+        .status(404)
+        .json({ message: `Doctor with id ${doctorId} not found.` });
+    }
+
+    const slotReserved = await client.sIsMember(reservationKey, dateTime);
+    if (!slotReserved) {
+      return res
+        .status(409)
+        .json({ message: "Selected time slot is not reserved." });
+    }
+
+    await client.sRem(reservationKey, dateTime);
+
+    res
+      .status(200)
+      .json({ message: `Reservation for ${dateTime} removed successfully!` });
+  } catch (error) {
+    res.status(500).json({ message: "Error removing reservation." });
+  }
+};
