@@ -58,9 +58,8 @@ export const getDoctors = async (req, res) => {
       const doctorId = key.split(":")[1];
 
       const workingHours = await client.sMembers(`workingHours:${doctorId}`);
-      const reservations = await client.sMembers(`reservations:${doctorId}`);
 
-      doctors.push({ ...doctorDetails, workingHours, reservations });
+      doctors.push({ ...doctorDetails, workingHours });
     }
 
     res.status(200).json(doctors);
@@ -75,7 +74,6 @@ export const getDoctor = async (req, res) => {
   try {
     const doctorKey = `doctor:${doctorId}`;
     const workingHoursKey = `workingHours:${doctorId}`;
-    const reservationsKey = `reservations:${doctorId}`;
 
     const doctorExists = await client.exists(doctorKey);
     if (!doctorExists) {
@@ -86,9 +84,8 @@ export const getDoctor = async (req, res) => {
 
     const doctorDetails = await client.hGetAll(doctorKey);
     const workingHours = await client.sMembers(workingHoursKey);
-    const reservations = await client.sMembers(reservationsKey);
 
-    res.status(200).json({ ...doctorDetails, workingHours, reservations });
+    res.status(200).json({ ...doctorDetails, workingHours });
   } catch (error) {
     res.status(500).json({ message: "Error getting doctor." });
   }
@@ -135,5 +132,33 @@ export const deleteDoctor = async (req, res) => {
       .json({ message: `Doctor with id: ${doctorId} deleted successfully!` });
   } catch (error) {
     res.status(500).json({ message: "Error deleting doctor." });
+  }
+};
+
+export const getDoctorReservations = async (req, res) => {
+  const doctorId = req.params.id;
+
+  try {
+    const doctorKey = `doctor:${doctorId}`;
+    const doctorReservationKeysSet = `doctorReservations:${doctorId}`;
+
+    const doctorExists = await client.exists(doctorKey);
+    if (!doctorExists) {
+      return res
+        .status(404)
+        .json({ message: `Doctor with id ${doctorId} not found.` });
+    }
+
+    const reservationKeys = await client.sMembers(doctorReservationKeysSet);
+
+    const reservations = [];
+    for (const reservationKey of reservationKeys) {
+      const reservationDetails = await client.hGetAll(reservationKey);
+      reservations.push(reservationDetails);
+    }
+
+    res.status(200).json(reservations);
+  } catch (error) {
+    res.status(500).json({ message: "Error getting doctor reservations." });
   }
 };
