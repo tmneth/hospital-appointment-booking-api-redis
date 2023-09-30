@@ -7,6 +7,6 @@ import {
 } from "../controllers/reservations.js";
 
 router.post("/", reserveAppointment);
-router.delete("/", removeReservation);
+router.delete("/:id", removeReservation);
 
 export default router;
