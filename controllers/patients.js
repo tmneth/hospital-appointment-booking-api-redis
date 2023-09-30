@@ -112,6 +112,5 @@ export const getPatientReservations = async (req, res) => {
     res.status(200).json(reservations);
   } catch (error) {
     res.status(500).json({ message: "Error getting patient reservations." });
-    console.log(error);
   }
 };
