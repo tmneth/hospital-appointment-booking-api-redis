@@ -1,29 +1,44 @@
+import { v4 as uuidv4 } from "uuid";
 import client from "../redisClient.js";
 
 export const reserveAppointment = async (req, res) => {
-  const { doctorId, dateTime } = req.body;
+  const { doctorId, dateTime, patientId } = req.body;
+
   const time = dateTime.split(" ")[1];
 
+  const doctorKey = `doctor:${doctorId}`;
+  const reservationKey = `reservation:${doctorId}:${dateTime}`;
+  const patientKey = `patient:${patientId}`;
+  const workingHoursKey = `workingHours:${doctorId}`;
+
   try {
-    const doctorKey = `doctor:${doctorId}`;
-    const reservationKey = `reservations:${doctorId}`;
-    const workingHoursKey = `workingHours:${doctorId}`;
+    client.watch(doctorKey, patientKey, reservationKey, workingHoursKey);
 
     const doctorExists = await client.exists(doctorKey);
     if (!doctorExists) {
+      client.unwatch();
       return res
         .status(404)
         .json({ message: `Doctor with id ${doctorId} not found.` });
     }
 
-    client.watch(reservationKey);
-
-    const slotReserved = await client.sIsMember(reservationKey, dateTime);
-    if (slotReserved) {
+    const patientExists = await client.exists(patientKey);
+    if (!patientExists) {
       client.unwatch();
       return res
-        .status(409)
-        .json({ message: "Selected time slot already reserved." });
+        .status(404)
+        .json({ message: `Patient with id ${patientId} not found.` });
+    }
+
+    const reservationExists = await client.sIsMember(
+      `doctorReservations:${doctorId}`,
+      reservationKey
+    );
+    if (reservationExists) {
+      client.unwatch();
+      return res.status(409).json({
+        message: "The doctor is already reserved for the given time slot.",
+      });
     }
 
     const slotAvailable = await client.sIsMember(workingHoursKey, time);
@@ -36,16 +51,32 @@ export const reserveAppointment = async (req, res) => {
 
     const multi = client.multi();
 
-    multi.sAdd(reservationKey, dateTime);
+    const newResId = uuidv4();
+
+    multi.hSet(reservationKey, [
+      "dateTime",
+      dateTime,
+      "resId",
+      newResId,
+      "doctorId",
+      doctorId,
+      "patientId",
+      patientId,
+    ]);
+
+    multi.sAdd(`doctorReservations:${doctorId}`, reservationKey);
+    multi.sAdd(`patientReservations:${patientId}`, reservationKey);
+    multi.set(`reservationId:${newResId}`, reservationKey);
 
     const results = await multi.exec();
 
     client.unwatch();
 
-    if (!results || results.includes(0)) {
-      return res
-        .status(409)
-        .json({ message: "Time slot has been reserved by another user." });
+    if (!results) {
+      return res.status(409).json({
+        message:
+          "Reservation failed due to concurrent modification. Please try again.",
+      });
     }
 
     res
@@ -57,32 +88,43 @@ export const reserveAppointment = async (req, res) => {
 };
 
 export const removeReservation = async (req, res) => {
-  const { doctorId, dateTime } = req.body;
+  const resId = req.params.id;
 
   try {
-    const doctorKey = `doctor:${doctorId}`;
-    const reservationKey = `reservations:${doctorId}`;
+    const reservationKey = await client.get(`resIdMapping:${resId}`);
 
-    const doctorExists = await client.exists(doctorKey);
-    if (!doctorExists) {
-      return res
-        .status(404)
-        .json({ message: `Doctor with id ${doctorId} not found.` });
+    if (!reservationKey) {
+      return res.status(404).json({
+        message: `No reservation found for the provided ID ${resId}.`,
+      });
     }
 
-    const slotReserved = await client.sIsMember(reservationKey, dateTime);
-    if (!slotReserved) {
-      return res
-        .status(409)
-        .json({ message: "Selected time slot is not reserved." });
-    }
+    const [doctorId, dateTime] = reservationKey.split(":").slice(1);
+    const doctorReservationListKey = `doctorReservations:${doctorId}`;
+    const patientId = await client.hGet(reservationKey, "patientId");
+    const patientReservationListKey = `patientReservations:${patientId}`;
 
-    await client.sRem(reservationKey, dateTime);
+    client.watch(
+      patientReservationListKey,
+      doctorReservationListKey,
+      reservationKey
+    );
 
-    res
-      .status(200)
-      .json({ message: `Reservation for ${dateTime} removed successfully!` });
+    const multi = client.multi();
+
+    multi.del(reservationKey);
+    multi.del(`reservationId:${resId}`);
+    multi.sRem(doctorReservationListKey, reservationKey);
+    multi.sRem(patientReservationListKey, reservationKey);
+
+    await multi.exec();
+
+    client.unwatch();
+
+    res.status(200).json({
+      message: `Reservation with ID ${resId} has been successfully removed!`,
+    });
   } catch (error) {
-    res.status(500).json({ message: "Error removing reservation." });
+    res.status(500).json({ message: "Error removing appointment by ID." });
   }
 };
